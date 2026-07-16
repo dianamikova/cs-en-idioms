@@ -186,7 +186,7 @@ def main():
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     print(f"\nWrote {len(results)} results -> {args.output}")
-    print("Next: run the Test A (determinism) and Test B (isolation) checks before trusting these outputs.")
+    print("Next: run the Test A (determinism) and Test B (isolation) checks to trust the outputs.")
 
 
 if __name__ == "__main__":
