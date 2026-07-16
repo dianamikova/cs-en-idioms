@@ -30,7 +30,7 @@ MODEL_ID = "utter-project/EuroLLM-9B-Instruct"
 SEED = 42
 
 
-# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure) ---
+# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure)
 
 def build_direct_prompt(cs_sentence):
     """Baseline condition: no idiom hint."""
@@ -55,7 +55,7 @@ def build_kbcot_prompt(cs_sentence, figurative_meaning):
     return [{"role": "user", "content": user_content}]
 
 
-# --- model loading and generation ---
+# --- model loading and generation
 
 def load_model():
     print(f"Loading {MODEL_ID} ...")
@@ -83,25 +83,28 @@ def generate(model, tokenizer, messages, max_new_tokens=256):
     This is what Test A (determinism) and Test B (isolation) check against."""
     torch.manual_seed(SEED)
 
-    input_ids = tokenizer.apply_chat_template(
-        messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
-    ).to(model.device)
+    # Get the prompt as plain text first (unambiguous), then tokenize
+    # explicitly ourselves — apply_chat_template's tokenize=True return type
+    # varies across transformers versions and environments; this avoids
+    # relying on it to hand back a ready-to-use tensor.
+    prompt_text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    encoded = tokenizer(prompt_text, return_tensors="pt").to(model.device)
 
     with torch.no_grad():
         output_ids = model.generate(
-            input_ids,
+            input_ids=encoded["input_ids"],
+            attention_mask=encoded["attention_mask"],
             max_new_tokens=max_new_tokens,
             do_sample=False,   # greedy decoding — no randomness
-            temperature=None,  # explicitly unset; irrelevant under do_sample=False, avoids silent defaults
-            top_p=None,
-            top_k=None,
         )
 
-    generated = output_ids[0][input_ids.shape[-1]:]  # strip the prompt, keep only new tokens
+    generated = output_ids[0][encoded["input_ids"].shape[-1]:]  # strip the prompt, keep only new tokens
     return tokenizer.decode(generated, skip_special_tokens=True).strip()
 
 
-# --- data loading ---
+# --- data loading
 
 def load_exploded_rows(path):
     rows = []
@@ -113,7 +116,7 @@ def load_exploded_rows(path):
     return rows
 
 
-# --- main run loop ---
+# --- main run loop
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
