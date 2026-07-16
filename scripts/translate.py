@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Experiment 1 — Direct vs. KB-CoT translation using EuroLLM-9B-Instruct
+Experiment 1 — Direct vs. KB-CoT translation using EuroLLM-9B-Instruct.
 
 Requires (once, before running):
     huggingface-cli login
@@ -8,9 +8,9 @@ Requires (once, before running):
        and accept the model's access conditions (gated repo).
 
 Usage:
-    python translate.py # runs on config.DEFAULT_EXPLODED_JSONL
-    python translate.py --limit 10  # pilot run on first 10 rows only
-    python translate.py --input path/data/file.jsonl --output path/results/results.jsonl
+    python translate.py # downloads the dataset from HuggingFace
+    python translate.py --limit 10 # pilot run on first 10 rows only
+    python translate.py --input path/to/local_file.jsonl --output path/to/results.jsonl
 """
 
 import argparse
@@ -22,17 +22,15 @@ from pathlib import Path
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from config import DEFAULT_EXPLODED_JSONL, RESULTS_DIR
+from huggingface_hub import hf_hub_download
+
+from config import DATA_DIR, DEFAULT_RESULTS_PATH, HF_REPO_ID, HF_REPO_TYPE
 
 MODEL_ID = "utter-project/EuroLLM-9B-Instruct"
 SEED = 42
-DEFAULT_RESULTS_PATH = RESULTS_DIR / "exp1_results.jsonl"
 
-# --- check if cuda is running ---
-print(torch.cuda.is_available())
-print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "no GPU")
 
-# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure) ---
+# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure)
 
 def build_direct_prompt(cs_sentence):
     """Baseline condition: no idiom hint."""
@@ -57,7 +55,7 @@ def build_kbcot_prompt(cs_sentence, figurative_meaning):
     return [{"role": "user", "content": user_content}]
 
 
-# --- model loading and generation ---
+# --- model loading and generatio
 
 def load_model():
     print(f"Loading {MODEL_ID} ...")
@@ -72,8 +70,8 @@ def load_model():
 
 
 def generate(model, tokenizer, messages, max_new_tokens=256):
-    """Deterministic (greedy) generation — do_sample=False, fixed seed
-    This is what Test A (determinism) and Test B (isolation) check against"""
+    """Deterministic (greedy) generation — do_sample=False, fixed seed.
+    This is what Test A (determinism) and Test B (isolation) check against."""
     torch.manual_seed(SEED)
 
     input_ids = tokenizer.apply_chat_template(
@@ -94,7 +92,7 @@ def generate(model, tokenizer, messages, max_new_tokens=256):
     return tokenizer.decode(generated, skip_special_tokens=True).strip()
 
 
-# --- data loading ---
+# --- data loading
 
 def load_exploded_rows(path):
     rows = []
@@ -106,21 +104,29 @@ def load_exploded_rows(path):
     return rows
 
 
-# --- main run loop ---
+# --- main run loop
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, default=DEFAULT_EXPLODED_JSONL,
-                         help=f"Exploded idiom JSONL (default: {DEFAULT_EXPLODED_JSONL})")
+    parser.add_argument("--input", type=Path, default=None,
+                         help="Exploded idiom JSONL. If omitted, downloads the current "
+                              "version directly from the HuggingFace dataset repo.")
     parser.add_argument("--output", type=Path, default=DEFAULT_RESULTS_PATH,
                          help=f"Where to write results (default: {DEFAULT_RESULTS_PATH})")
     parser.add_argument("--limit", type=int, default=None,
                          help="Only process the first N rows (use for a pilot run)")
     args = parser.parse_args()
 
-    if not args.input.exists():
+    if args.input is None:
+        print(f"Downloading idioms-exp1.jsonl from HF dataset repo {HF_REPO_ID} ...")
+        args.input = Path(hf_hub_download(
+            repo_id=HF_REPO_ID,
+            repo_type=HF_REPO_TYPE,
+            filename="idioms-exp1.jsonl",
+        ))
+    elif not args.input.exists():
         print(f"ERROR: input file not found: {args.input}", file=sys.stderr)
-        print("Run transform_dataset.py first to produce it.", file=sys.stderr)
+        print("Run transform_dataset.py first to produce it, or omit --input to pull from HF.", file=sys.stderr)
         sys.exit(1)
 
     rows = load_exploded_rows(args.input)
@@ -155,6 +161,7 @@ def main():
         print(f"  Direct  : {direct_output}")
         print(f"  KB-CoT  : {kbcot_output}")
 
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
