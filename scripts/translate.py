@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""
+Experiment 1 — Direct vs. KB-CoT translation using EuroLLM-9B-Instruct
+
+Requires (once, before running):
+    huggingface-cli login
+    -> then visit https://huggingface.co/utter-project/EuroLLM-9B-Instruct
+       and accept the model's access conditions (gated repo).
+
+Usage:
+    python translate.py # runs on config.DEFAULT_EXPLODED_JSONL
+    python translate.py --limit 10  # pilot run on first 10 rows only
+    python translate.py --input path/data/file.jsonl --output path/results/results.jsonl
+"""
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from config import DEFAULT_EXPLODED_JSONL, RESULTS_DIR
+
+MODEL_ID = "utter-project/EuroLLM-9B-Instruct"
+SEED = 42
+DEFAULT_RESULTS_PATH = RESULTS_DIR / "exp1_results.jsonl"
+
+# --- check if cuda is running ---
+print(torch.cuda.is_available())
+print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "no GPU")
+
+# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure) ---
+
+def build_direct_prompt(cs_sentence):
+    """Baseline condition: no idiom hint."""
+    user_content = (
+        f"Translate the following Czech sentence into English.\n"
+        f"Czech: {cs_sentence}\n"
+        f"English:"
+    )
+    return [{"role": "user", "content": user_content}]
+
+
+def build_kbcot_prompt(cs_sentence, figurative_meaning):
+    """Treatment condition: figurative meaning injected as a preamble,
+    matching IdiomKB's KB-CoT structure."""
+    user_content = (
+        f'This sentence contains an idiom whose figurative meaning is: '
+        f'"{figurative_meaning}".\n\n'
+        f"Given the above knowledge, translate the following Czech sentence into English.\n"
+        f"Czech: {cs_sentence}\n"
+        f"English:"
+    )
+    return [{"role": "user", "content": user_content}]
+
+
+# --- model loading and generation ---
+
+def load_model():
+    print(f"Loading {MODEL_ID} ...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_ID,
+        torch_dtype=torch.bfloat16,   # halves memory vs. fp32; adjust to float16 if bfloat16 unsupported on your GPU
+        device_map="auto",
+    )
+    model.eval()
+    return model, tokenizer
+
+
+def generate(model, tokenizer, messages, max_new_tokens=256):
+    """Deterministic (greedy) generation — do_sample=False, fixed seed
+    This is what Test A (determinism) and Test B (isolation) check against"""
+    torch.manual_seed(SEED)
+
+    input_ids = tokenizer.apply_chat_template(
+        messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
+    ).to(model.device)
+
+    with torch.no_grad():
+        output_ids = model.generate(
+            input_ids,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,   # greedy decoding — no randomness
+            temperature=None,  # explicitly unset; irrelevant under do_sample=False, avoids silent defaults
+            top_p=None,
+            top_k=None,
+        )
+
+    generated = output_ids[0][input_ids.shape[-1]:]  # strip the prompt, keep only new tokens
+    return tokenizer.decode(generated, skip_special_tokens=True).strip()
+
+
+# --- data loading ---
+
+def load_exploded_rows(path):
+    rows = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+# --- main run loop ---
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, default=DEFAULT_EXPLODED_JSONL,
+                         help=f"Exploded idiom JSONL (default: {DEFAULT_EXPLODED_JSONL})")
+    parser.add_argument("--output", type=Path, default=DEFAULT_RESULTS_PATH,
+                         help=f"Where to write results (default: {DEFAULT_RESULTS_PATH})")
+    parser.add_argument("--limit", type=int, default=None,
+                         help="Only process the first N rows (use for a pilot run)")
+    args = parser.parse_args()
+
+    if not args.input.exists():
+        print(f"ERROR: input file not found: {args.input}", file=sys.stderr)
+        print("Run transform_dataset.py first to produce it.", file=sys.stderr)
+        sys.exit(1)
+
+    rows = load_exploded_rows(args.input)
+    if args.limit:
+        rows = rows[: args.limit]
+    print(f"Loaded {len(rows)} sentence rows from {args.input}")
+
+    model, tokenizer = load_model()
+
+    results = []
+    for i, row in enumerate(rows, start=1):
+        cs_sentence = row["cs_sentence"]
+        figurative_meaning = row["figurative_meaning"]
+
+        direct_output = generate(model, tokenizer, build_direct_prompt(cs_sentence))
+        kbcot_output = generate(model, tokenizer, build_kbcot_prompt(cs_sentence, figurative_meaning))
+
+        result = {
+            "id": row["id"],
+            "cs_sentence": cs_sentence,
+            "figurative_meaning": figurative_meaning,
+            "preferred_rendering": row.get("preferred_rendering", ""),
+            "direct_output": direct_output,
+            "kbcot_output": kbcot_output,
+            "model_id": MODEL_ID,
+            "seed": SEED,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        results.append(result)
+        print(f"[{i}/{len(rows)}] id={row['id']}")
+        print(f"  CS      : {cs_sentence}")
+        print(f"  Direct  : {direct_output}")
+        print(f"  KB-CoT  : {kbcot_output}")
+
+    with open(args.output, "w", encoding="utf-8") as f:
+        for r in results:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    print(f"\nWrote {len(results)} results -> {args.output}")
+    print("Next: run the Test A (determinism) and Test B (isolation) checks before trusting these outputs.")
+
+
+if __name__ == "__main__":
+    main()

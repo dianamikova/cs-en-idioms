@@ -1,0 +1,22 @@
+# Python bytecode cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter / Colab checkpoints
+.ipynb_checkpoints/
+
+# OS cruft
+.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Environment variables / secrets (e.g. HF tokens if ever stored in a .env)
+.env
