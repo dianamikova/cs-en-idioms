@@ -8,8 +8,8 @@ Requires (once, before running):
        and accept the model's access conditions (gated repo).
 
 Usage:
-    python translate.py # downloads the dataset from HuggingFace
-    python translate.py --limit 10 # pilot run on first 10 rows only
+    python translate.py                  # downloads the dataset from HuggingFace
+    python translate.py --limit 10        # pilot run on first 10 rows only
     python translate.py --input path/to/local_file.jsonl --output path/to/results.jsonl
 """
 
@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 from huggingface_hub import hf_hub_download
 
@@ -30,7 +30,7 @@ MODEL_ID = "utter-project/EuroLLM-9B-Instruct"
 SEED = 42
 
 
-# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure)
+# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure) ---
 
 def build_direct_prompt(cs_sentence):
     """Baseline condition: no idiom hint."""
@@ -55,14 +55,23 @@ def build_kbcot_prompt(cs_sentence, figurative_meaning):
     return [{"role": "user", "content": user_content}]
 
 
-# --- model loading and generatio
+# --- model loading and generation ---
 
 def load_model():
     print(f"Loading {MODEL_ID} ...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+
+    # 9B params in bf16 needs ~18GB — doesn't fit a 16GB T4, which forces
+    # CPU offloading and breaks generate(). 4-bit quantization brings it
+    # down to ~5-6GB, fitting fully on GPU with no offloading at all.
+    quant_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_quant_type="nf4",
+    )
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
-        torch_dtype=torch.bfloat16,   # halves memory vs. fp32; adjust to float16 if bfloat16 unsupported on your GPU
+        quantization_config=quant_config,
         device_map="auto",
     )
     model.eval()
@@ -92,7 +101,7 @@ def generate(model, tokenizer, messages, max_new_tokens=256):
     return tokenizer.decode(generated, skip_special_tokens=True).strip()
 
 
-# --- data loading
+# --- data loading ---
 
 def load_exploded_rows(path):
     rows = []
@@ -104,7 +113,7 @@ def load_exploded_rows(path):
     return rows
 
 
-# --- main run loop
+# --- main run loop ---
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
