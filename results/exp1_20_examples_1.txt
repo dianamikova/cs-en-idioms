@@ -1,0 +1,126 @@
+Experiment 1 — Pilot run (n=20, sample-seed=42)
+Model: utter-project/EuroLLM-9B-Instruct (4-bit quantized)
+================================================================================
+
+[1/20] id=100
+  CS      : Koledoval si o pěkný průšvih, když omylem odešel z obchodu bez zaplacení.
+  Direct  : He was asking for a big trouble when he left the store without paying.
+  KB-CoT  : He was asking for trouble when he accidentally left the store without paying.
+
+[2/20] id=18
+  CS      : Nejdříve jen brnkal sociální demokracii na nervy.
+  Direct  : At first, he just tickled the nerves of the social democrats.
+  KB-CoT  : At first, he was just annoying the social democrats.
+
+[3/20] id=5
+  CS      : Stojí za svým názorem stůj co stůj.
+  Direct  : He stands by his opinion no matter what.
+  KB-CoT  : He stands by his opinion at all costs.
+  NOTE    : Direct was already correct ("no matter what" fits stůj co stůj's
+            "stand" root); KB-CoT pulled it toward "at all costs" (za každou
+            cenu's territory) — a gloss-hurt case, degrading a correct baseline.
+
+[4/20] id=41
+  CS      : Šéf přivřel oko nad tím, že přišel kolega o pět minut později.
+  Direct  : The boss closed an eye over the fact that the colleague came five minutes later.
+  KB-CoT  : The boss turned a blind eye to the fact that the colleague came five minutes later.
+
+[5/20] id=37
+  CS      : Šéf mu dal padáka kvůli častým pozdním příchodům.
+  Direct  : The boss fired him because of his frequent late arrivals.
+  KB-CoT  : The boss fired him because of his frequent late arrivals.
+
+[6/20] id=33
+  CS      : Slibný projekt se ukázal být danajským darem, protože nás stál všechny zaměstnance.
+  Direct  : The promising project turned out to be a Trojan horse, because it cost us all employees.
+  KB-CoT  : The promising project turned out to be a Trojan horse because it cost all of us employees.
+
+[7/20] id=22
+  CS      : Úřady jsou na prokazování pochybného otcovství krátké.
+  Direct  : The authorities are short of proving doubtful paternity.
+  KB-CoT  : The authorities are short of proving doubtful paternity.
+
+[8/20] id=16
+  CS      : Zvládni maturitu z českého jazyka levou zadní!
+  Direct  : Pass your Czech language matriculation exam with flying colors!
+  KB-CoT  : Pass your Czech language matriculation exam with ease!
+
+[9/20] id=106
+  CS      : Není možné vynášet soudy s nedostatečnými informacemi.
+  Direct  : It is not possible to make judgments with insufficient information.
+  KB-CoT  : It is not possible to make judgments with insufficient information.
+
+[10/20] id=85
+  CS      : Uspořádali jsme naší kamarádce rozlučku se svobodou.
+  Direct  : We organized a bachelorette party for our friend.
+  KB-CoT  : We organized a bachelorette party for our friend before her marriage.
+
+[11/20] id=14
+  CS      : Vysvětlovat mu, že nemá věřit dezinformacím, je jako bojovat s větrnými mlýny.
+  Direct  : Explaining to him that he should not believe in disinformation is like fighting with windmills.
+  KB-CoT  : Explaining to him that he should not believe in disinformation is like fighting with windmills.
+
+[12/20] id=92
+  CS      : Mám plné zuby toho tého vymlouvání se na počasí.
+  Direct  : I am fed up with this excuse about the weather.
+  KB-CoT  : I am sick and tired of all this excusing oneself on the weather.
+
+[13/20] id=64
+  CS      : To si nemůžeš pamatovat, to jsi ještě tahal kačera.
+  Direct  : You can't remember that, you were still pulling the duck.
+  KB-CoT  : You can't remember that, you were still pulling the duck.
+  NOTE    : Flagged in dataset review as unverified/low-confidence idiom.
+            Neither condition reached a figurative reading — supports the
+            original doubt about whether this is a standard fixed idiom.
+
+[14/20] id=6
+  CS      : Chce uspět za každou cenu.
+  Direct  : He wants to succeed at any cost.
+  KB-CoT  : He wants to succeed at all costs.
+
+[15/20] id=5
+  CS      : Stůj co stůj se snažil nevypadat hloupě.
+  Direct  : No matter what, he tried not to look stupid.
+  KB-CoT  : At all costs he tried not to look stupid.
+  NOTE    : Same pattern as row 3 (same idiom id=5) — Direct correct,
+            KB-CoT shifts to the near-synonym's phrasing. Second instance
+            of the same gloss-hurt effect on this idiom specifically.
+
+[16/20] id=15
+  CS      : Bereš to moc na lehkou váhu.
+  Direct  : You take it too lightly.
+  KB-CoT  : You are underestimating it.
+
+[17/20] id=32
+  CS      : Když jsme byli mladí, občas jsme chodili za školu, protože jsme si chtěli užít sluníčko.
+  Direct  : When we were young, we sometimes skipped school because we wanted to enjoy the sun.
+  KB-CoT  : When we were young, we sometimes skipped school because we wanted to enjoy the sun.
+
+[18/20] id=35
+  CS      : Chodila jsem s ním skoro šest let, ale nakonec jsem mu dala košem.
+  Direct  : I went out with him for almost six years, but in the end I turned him down.
+  KB-CoT  : I went out with him for almost six years, but in the end I turned him down.
+
+[19/20] id=78
+  CS      : Musíš si být víc jistý sám sebou, aby to z tebe nelezlo jak z chlupaté deky.
+  Direct  : You have to be more confident in yourself so that it doesn't come out of you like from a furry blanket.
+  KB-CoT  : You have to be more confident in yourself so that it doesn't come out of you like from a hairy blanket.
+  NOTE    : Also flagged as unverified in dataset review. Both conditions
+            translate near-literally; KB-CoT only fixes "furry"->"hairy"
+            lexically, no figurative reading reached either way.
+
+[20/20] id=94
+  CS      : Plný brýle toho měl už po deseti minutách.
+  Direct  : He was already full of glasses after ten minutes.
+  KB-CoT  : He was sick and tired of it after ten minutes.
+  NOTE    : Strongest clean win in the batch — Direct is nonsensical,
+            KB-CoT fully recovers the figurative meaning.
+
+================================================================================
+Summary (informal, pre-Test A/B):
+  Gloss helped (clear figurative fix)      : ~7  (ids 100,18,41,16,20, partial 8,12)
+  Gloss ignored / no change                : ~9  (ids 37,22,106,14,11,13,17,18, partial 6)
+  Gloss hurt (degraded a correct baseline)  : 2   (id=5, both occurrences)
+  Unverified idiom, inconclusive            : 2   (id=64, id=78)
+
+Not yet validated against Test A (determinism) or Test B (isolation).
