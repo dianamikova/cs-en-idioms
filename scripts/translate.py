@@ -9,12 +9,14 @@ Requires (once, before running):
 
 Usage:
     python translate.py                  # downloads the dataset from HuggingFace
-    python translate.py --limit 10        # pilot run on first 10 rows only
+    python translate.py --limit 20        # random sample of 20 rows (reproducible)
+    python translate.py --limit 20 --sample-seed 7   # a different random 20
     python translate.py --input path/to/local_file.jsonl --output path/to/results.jsonl
 """
 
 import argparse
 import json
+import random
 import sys
 import time
 from pathlib import Path
@@ -30,7 +32,7 @@ MODEL_ID = "utter-project/EuroLLM-9B-Instruct"
 SEED = 42
 
 
-# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure)
+# --- prompt builders (Direct vs. KB-CoT, IdiomKB Table 3 structure) ---
 
 def build_direct_prompt(cs_sentence):
     """Baseline condition: no idiom hint."""
@@ -55,7 +57,7 @@ def build_kbcot_prompt(cs_sentence, figurative_meaning):
     return [{"role": "user", "content": user_content}]
 
 
-# --- model loading and generation
+# --- model loading and generation ---
 
 def load_model():
     print(f"Loading {MODEL_ID} ...")
@@ -104,7 +106,7 @@ def generate(model, tokenizer, messages, max_new_tokens=256):
     return tokenizer.decode(generated, skip_special_tokens=True).strip()
 
 
-# --- data loading
+# --- data loading ---
 
 def load_exploded_rows(path):
     rows = []
@@ -116,7 +118,7 @@ def load_exploded_rows(path):
     return rows
 
 
-# --- main run loop
+# --- main run loop ---
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -126,7 +128,11 @@ def main():
     parser.add_argument("--output", type=Path, default=DEFAULT_RESULTS_PATH,
                          help=f"Where to write results (default: {DEFAULT_RESULTS_PATH})")
     parser.add_argument("--limit", type=int, default=None,
-                         help="Only process the first N rows (use for a pilot run)")
+                         help="Only process N rows (use for a pilot run)")
+    parser.add_argument("--sample-seed", type=int, default=SEED,
+                         help=f"Seed for random row sampling when --limit is set "
+                              f"(default: {SEED}). Same seed -> same sampled rows "
+                              f"every run, which Test A (determinism) depends on.")
     args = parser.parse_args()
 
     if args.input is None:
@@ -143,7 +149,8 @@ def main():
 
     rows = load_exploded_rows(args.input)
     if args.limit:
-        rows = rows[: args.limit]
+        rng = random.Random(args.sample_seed)
+        rows = rng.sample(rows, min(args.limit, len(rows)))
     print(f"Loaded {len(rows)} sentence rows from {args.input}")
 
     model, tokenizer = load_model()
