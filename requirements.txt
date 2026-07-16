@@ -1,3 +1,7 @@
 # How to install requirements:
 ##      pip install -r requirements.txt --break-system-packages
 huggingface_hub>=0.24.0
+transformers>=4.46.0
+torch>=2.2.0
+bitsandbytes>=0.43.0
+accelerate>=0.34.0
