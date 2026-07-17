@@ -161,7 +161,13 @@ def main():
         figurative_meaning = row["figurative_meaning"]
 
         direct_output = generate(model, tokenizer, build_direct_prompt(cs_sentence))
-        kbcot_output = generate(model, tokenizer, build_kbcot_prompt(cs_sentence, figurative_meaning))
+
+        if figurative_meaning.strip():
+            kbcot_output = generate(model, tokenizer, build_kbcot_prompt(cs_sentence, figurative_meaning))
+        else:
+            # No real meaning to inject (e.g. a general/non-idiom sentence) —
+            # KB-CoT must reduce to Direct exactly, not assert a false premise.
+            kbcot_output = direct_output
 
         result = {
             "id": row["id"],
